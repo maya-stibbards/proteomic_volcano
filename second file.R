@@ -12,37 +12,27 @@ library(readxl)
 
 df <- read_excel("Anshul and Maia results.xlsx", sheet = 1, na = "NA")
 dfdrop <- df[-c(1,2,4,5,7:10,12:14)]
-# dfvar <- dfdrop %>% as.numeric(as.character(unlist(dfdrop[[1]]))) %>% drop_na() 
-# dfnumeric <- as.numeric(as.character(dfdrop$log2FC))
-# df_tidy <- dfvar %>% drop_na()
-numericdf <- as.numeric(as.character(unlist(dfdrop$log2FC)))
-df_tidy <- na.omit(dfdrop, cols=c("log2FC", "adj.pvalue"))
+dfdrop$adj.pvalue_log <- (log10(dfdrop$adj.pvalue)*-1)
+df_tidy <- na.omit(dfdrop, cols=c("log2FC", "−log10 p-value"))
 dfdrop %>% summarise(Number_of_proteins = n())
 df_tidy %>% summarise(Number_of_proteins = n())
 
 
+df_tidy %>% ggplot(aes(log2FC,adj.pvalue_log)) + geom_point()
 
-
-quantile_normalisation <- function(df){
-  
-  # Find rank of values in each column
-  df_rank <- map_df(df,rank,ties.method="average")
-  # Sort observations in each column from lowest to highest 
-  df_sorted <- map_df(df,sort)
-  # Find row mean on sorted columns
-  df_mean <- rowMeans(df_sorted)
-  
-  # Function for substiting mean values according to rank 
-  index_to_mean <- function(my_index, my_mean){
-    return(my_mean[my_index])
-  }
-  
-  # Replace value in each column with mean according to rank 
-  df_final <- map_df(df_rank,index_to_mean, my_mean=df_mean)
-  
-  return(df_final)
-}
-
-df_norm <- df_tidy %>% select(-c('Gene.Name')) %>% 
-  quantile_normalisation() %>% 
-  bind_cols(df_tidy[,1],.)
+df_tidy %>%
+  # significant observations
+  mutate(threshold = if_else(log2FC >= 2 & adj.pvalue_log >= 1.3 |
+                               log2FC <= -2 & adj.pvalue_log >= 1.3,"A", "B")) %>%
+  # coloured according to the threshold
+  ggplot(aes(log2FC,adj.pvalue_log, colour = threshold)) +
+  geom_point(alpha = 0.5) +
+  # dotted lines to indicate the threshold
+  geom_hline(yintercept = 1.3, linetype = 2, alpha = 0.5) + 
+  geom_vline(xintercept = 2, linetype = 2, alpha = 0.5) +
+  geom_vline(xintercept = -2, linetype = 2, alpha = 0.5) +
+  # colour of the points
+  scale_colour_manual(values = c("A"= "red", "B"= "black")) +
+  xlab("log2 fold change") + ylab("-log10 p-value") + # Relabel the axes
+  theme_minimal() + # Set the theme
+  theme(legend.position="none") # Hide the legend
